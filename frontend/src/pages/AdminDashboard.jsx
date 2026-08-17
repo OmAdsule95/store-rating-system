@@ -9,21 +9,31 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Add User form
+  // ==================================================
+  // ADD USER FORM
+  // ==================================================
+
   const [showUserForm, setShowUserForm] = useState(false);
 
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userAddress, setUserAddress] = useState("");
+
+  // USER / OWNER / ADMIN
   const [userRole, setUserRole] = useState("USER");
 
-  // Store details for OWNER
+  // ==================================================
+  // STORE DETAILS
+  // Only required for OWNER
+  // ==================================================
+
   const [storeName, setStoreName] = useState("");
   const [storeEmail, setStoreEmail] = useState("");
   const [storeAddress, setStoreAddress] = useState("");
 
   const [formLoading, setFormLoading] = useState(false);
+
 
   // ==================================================
   // LOAD ADMIN DASHBOARD
@@ -44,6 +54,21 @@ function AdminDashboard() {
         api.get("/admin/stores")
       ]);
 
+      console.log(
+        "Dashboard:",
+        dashboardResponse.data
+      );
+
+      console.log(
+        "Users:",
+        usersResponse.data
+      );
+
+      console.log(
+        "Stores:",
+        storesResponse.data
+      );
+
       setData(
         dashboardResponse.data.data
       );
@@ -57,6 +82,7 @@ function AdminDashboard() {
       );
 
     } catch (error) {
+
       console.error(
         "Admin dashboard error:",
         error
@@ -68,7 +94,9 @@ function AdminDashboard() {
       );
 
     } finally {
+
       setLoading(false);
+
     }
   };
 
@@ -87,10 +115,12 @@ function AdminDashboard() {
   // ==================================================
 
   const logout = () => {
+
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
     window.location.href = "/";
+
   };
 
 
@@ -99,6 +129,7 @@ function AdminDashboard() {
   // ==================================================
 
   const resetUserForm = () => {
+
     setUserName("");
     setUserEmail("");
     setUserPassword("");
@@ -109,17 +140,20 @@ function AdminDashboard() {
     setStoreName("");
     setStoreEmail("");
     setStoreAddress("");
+
   };
 
 
   // ==================================================
-  // CREATE USER / OWNER
+  // CREATE USER / OWNER / ADMIN
   // ==================================================
 
   const handleCreateUser = async (e) => {
+
     e.preventDefault();
 
     try {
+
       setFormLoading(true);
 
       const response = await api.post(
@@ -131,6 +165,7 @@ function AdminDashboard() {
           address: userAddress,
           role: userRole,
 
+          // Store information ONLY for OWNER
           ...(userRole === "OWNER"
             ? {
                 storeName,
@@ -141,18 +176,24 @@ function AdminDashboard() {
         }
       );
 
+
       alert(
         response.data.message ||
         "User created successfully"
       );
 
+
+      // Reset form
       resetUserForm();
 
+      // Close form
       setShowUserForm(false);
 
+      // Reload dashboard
       await loadDashboard();
 
     } catch (error) {
+
       console.error(
         "Create user error:",
         error
@@ -164,7 +205,9 @@ function AdminDashboard() {
       );
 
     } finally {
+
       setFormLoading(false);
+
     }
   };
 
@@ -175,24 +218,39 @@ function AdminDashboard() {
 
   const handleDeleteUser = async (user) => {
 
-    // ADMIN CANNOT BE DELETED
-    if (user.role === "ADMIN") {
+    // Prevent deleting the currently logged-in
+    // admin account
+    const currentUser =
+      JSON.parse(
+        localStorage.getItem("user") || "null"
+      );
+
+    if (
+      currentUser &&
+      Number(currentUser.id) === Number(user.id)
+    ) {
+
       alert(
-        "Admin accounts cannot be deleted."
+        "You cannot delete your own account."
       );
 
       return;
     }
 
 
-    // CONFIRMATION
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${user.name}?\n\n` +
-      `Role: ${user.role}\n` +
-      `Email: ${user.email}\n\n` +
-      `If this is an OWNER, their store will also be deleted.\n\n` +
-      `This action cannot be undone.`
-    );
+    // Confirmation
+    const confirmed =
+      window.confirm(
+        `Are you sure you want to delete ${user.name}?\n\n` +
+        `Role: ${user.role}\n` +
+        `Email: ${user.email}\n\n` +
+        `${
+          user.role === "OWNER"
+            ? "If this is an OWNER, their store will also be deleted.\n\n"
+            : ""
+        }` +
+        `This action cannot be undone.`
+      );
 
 
     if (!confirmed) {
@@ -202,9 +260,10 @@ function AdminDashboard() {
 
     try {
 
-      const response = await api.delete(
-        `/admin/users/${user.id}`
-      );
+      const response =
+        await api.delete(
+          `/admin/users/${user.id}`
+        );
 
 
       alert(
@@ -216,7 +275,6 @@ function AdminDashboard() {
       // Reload dashboard
       await loadDashboard();
 
-
     } catch (error) {
 
       console.error(
@@ -224,11 +282,11 @@ function AdminDashboard() {
         error
       );
 
-
       alert(
         error.response?.data?.message ||
         "Failed to delete user"
       );
+
     }
   };
 
@@ -240,6 +298,7 @@ function AdminDashboard() {
   if (loading) {
 
     return (
+
       <div style={styles.center}>
 
         <h2>
@@ -247,7 +306,9 @@ function AdminDashboard() {
         </h2>
 
       </div>
+
     );
+
   }
 
 
@@ -258,6 +319,7 @@ function AdminDashboard() {
   if (error) {
 
     return (
+
       <div style={styles.center}>
 
         <div style={styles.error}>
@@ -272,7 +334,9 @@ function AdminDashboard() {
         </button>
 
       </div>
+
     );
+
   }
 
 
@@ -283,6 +347,7 @@ function AdminDashboard() {
   if (!data) {
 
     return (
+
       <div style={styles.center}>
 
         <h2>
@@ -297,7 +362,9 @@ function AdminDashboard() {
         </button>
 
       </div>
+
     );
+
   }
 
 
@@ -395,7 +462,9 @@ function AdminDashboard() {
             >
 
 
-              {/* NAME */}
+              {/* ==================================================
+                  NAME
+              ================================================== */}
 
               <input
                 style={styles.input}
@@ -416,7 +485,9 @@ function AdminDashboard() {
               />
 
 
-              {/* EMAIL */}
+              {/* ==================================================
+                  EMAIL
+              ================================================== */}
 
               <input
                 style={styles.input}
@@ -437,7 +508,9 @@ function AdminDashboard() {
               />
 
 
-              {/* PASSWORD */}
+              {/* ==================================================
+                  PASSWORD
+              ================================================== */}
 
               <input
                 style={styles.input}
@@ -458,7 +531,9 @@ function AdminDashboard() {
               />
 
 
-              {/* ADDRESS */}
+              {/* ==================================================
+                  ADDRESS
+              ================================================== */}
 
               <textarea
                 style={styles.textarea}
@@ -477,16 +552,21 @@ function AdminDashboard() {
               />
 
 
-              {/* ROLE */}
+              {/* ==================================================
+                  ROLE
+              ================================================== */}
 
               <label style={styles.label}>
-                Register as:
+                Role:
               </label>
 
 
               <div style={styles.radioContainer}>
 
-                {/* USER */}
+
+                {/* ==================================================
+                    USER
+                ================================================== */}
 
                 <label style={styles.radioLabel}>
 
@@ -507,13 +587,15 @@ function AdminDashboard() {
                   />
 
                   <span>
-                    Customer
+                    User
                   </span>
 
                 </label>
 
 
-                {/* OWNER */}
+                {/* ==================================================
+                    STORE OWNER
+                ================================================== */}
 
                 <label style={styles.radioLabel}>
 
@@ -535,6 +617,35 @@ function AdminDashboard() {
 
                   <span>
                     Store Owner
+                  </span>
+
+                </label>
+
+
+                {/* ==================================================
+                    ADMIN
+                ================================================== */}
+
+                <label style={styles.radioLabel}>
+
+                  <input
+                    type="radio"
+
+                    name="role"
+
+                    value="ADMIN"
+
+                    checked={
+                      userRole === "ADMIN"
+                    }
+
+                    onChange={() =>
+                      setUserRole("ADMIN")
+                    }
+                  />
+
+                  <span>
+                    Admin
                   </span>
 
                 </label>
@@ -623,7 +734,9 @@ function AdminDashboard() {
               )}
 
 
-              {/* CREATE BUTTON */}
+              {/* ==================================================
+                  CREATE BUTTON
+              ================================================== */}
 
               <button
                 type="submit"
@@ -637,6 +750,8 @@ function AdminDashboard() {
                   ? "Creating..."
                   : userRole === "OWNER"
                   ? "Create Owner & Store"
+                  : userRole === "ADMIN"
+                  ? "Create Admin"
                   : "Create User"}
 
               </button>
@@ -824,7 +939,11 @@ function AdminDashboard() {
                             : styles.userRole)
                         }}
                       >
-                        {user.role}
+                        {user.role === "USER"
+                          ? "User"
+                          : user.role === "OWNER"
+                          ? "Store Owner"
+                          : "Admin"}
                       </span>
 
                     </td>
@@ -834,8 +953,7 @@ function AdminDashboard() {
 
                     <td style={styles.td}>
 
-                      {user.role ===
-                        "OWNER" &&
+                      {user.role === "OWNER" &&
                       user.store ? (
 
                         <div>
@@ -879,31 +997,19 @@ function AdminDashboard() {
 
                     <td style={styles.td}>
 
-                      {user.role === "ADMIN" ? (
+                      <button
+                        style={
+                          styles.deleteButton
+                        }
 
-                        <span
-                          style={styles.protected}
-                        >
-                          🔒 Protected
-                        </span>
-
-                      ) : (
-
-                        <button
-                          style={
-                            styles.deleteButton
-                          }
-
-                          onClick={() =>
-                            handleDeleteUser(
-                              user
-                            )
-                          }
-                        >
-                          🗑 Delete
-                        </button>
-
-                      )}
+                        onClick={() =>
+                          handleDeleteUser(
+                            user
+                          )
+                        }
+                      >
+                        🗑 Delete
+                      </button>
 
                     </td>
 
@@ -992,7 +1098,8 @@ function AdminDashboard() {
 
                       ⭐{" "}
 
-                      {store.rating ||
+                      {store.overallRating ??
+                        store.rating ??
                         "No ratings"}
 
                     </td>
@@ -1010,9 +1117,9 @@ function AdminDashboard() {
         </div>
 
 
-        {/* ==================================================
+       
             REFRESH
-        ================================================== */}
+        
 
         <button
           onClick={loadDashboard}
@@ -1025,13 +1132,12 @@ function AdminDashboard() {
       </main>
 
     </div>
+
   );
 }
 
-
-// ==================================================
 // STYLES
-// ==================================================
+
 
 const styles = {
 
@@ -1309,16 +1415,6 @@ const styles = {
   },
 
 
-  protected: {
-    background: "#e5e7eb",
-    color: "#374151",
-    padding: "7px 10px",
-    borderRadius: "6px",
-    fontSize: "13px",
-    fontWeight: "bold"
-  },
-
-
   refresh: {
     marginTop: "30px",
     background: "#2563eb",
@@ -1360,6 +1456,5 @@ const styles = {
   }
 
 };
-
 
 export default AdminDashboard;

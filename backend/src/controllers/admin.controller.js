@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const prisma = require("../config/prisma");
 
 
@@ -15,7 +15,7 @@ const getDashboard = async (req, res) => {
 
     const totalRatings = await prisma.rating.count();
 
-    res.json({
+    return res.json({
       success: true,
 
       data: {
@@ -28,22 +28,21 @@ const getDashboard = async (req, res) => {
   } catch (error) {
 
     console.error(
-      "Dashboard error:",
+      "Admin dashboard error:",
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Failed to load dashboard"
+      message:
+        "Failed to load admin dashboard"
     });
   }
 };
 
 
 // =====================================================
-// CREATE USER / OWNER
-// ADMIN CANNOT CREATE ADMIN
-// OWNER CREATES STORE AUTOMATICALLY
+// CREATE USER / OWNER / ADMIN
 // =====================================================
 
 const createUser = async (req, res) => {
@@ -54,18 +53,16 @@ const createUser = async (req, res) => {
       email,
       password,
       address,
-      role = "USER",
-
-      // Store details for OWNER
+      role,
       storeName,
       storeEmail,
       storeAddress
     } = req.body;
 
 
-    // ---------------------------------------------
-    // Required user fields
-    // ---------------------------------------------
+    // =================================================
+    // BASIC VALIDATION
+    // =================================================
 
     if (
       !name ||
@@ -73,22 +70,24 @@ const createUser = async (req, res) => {
       !password ||
       !address
     ) {
+
       return res.status(400).json({
         success: false,
         message:
-          "Name, email, password and address are required"
+          "All user fields are required"
       });
     }
 
 
-    // ---------------------------------------------
-    // Name validation
-    // ---------------------------------------------
+    // =================================================
+    // NAME VALIDATION
+    // =================================================
 
     if (
       name.length < 20 ||
       name.length > 60
     ) {
+
       return res.status(400).json({
         success: false,
         message:
@@ -97,56 +96,67 @@ const createUser = async (req, res) => {
     }
 
 
-    // ---------------------------------------------
-    // Address validation
-    // ---------------------------------------------
+    // =================================================
+    // PASSWORD VALIDATION
+    // =================================================
 
-    if (address.length > 400) {
+    if (password.length < 6) {
+
       return res.status(400).json({
         success: false,
         message:
-          "Address cannot exceed 400 characters"
+          "Password must be at least 6 characters"
       });
     }
 
 
-    // ---------------------------------------------
-    // Password validation
-    // 8-16 characters
-    // At least one uppercase
-    // At least one special character
-    // ---------------------------------------------
+    // =================================================
+    // ROLE VALIDATION
+    // =================================================
 
-    const passwordRegex =
-      /^(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,16}$/;
-
-    if (!passwordRegex.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Password must be 8-16 characters with at least one uppercase letter and one special character"
-      });
-    }
-
-
-    // ---------------------------------------------
-    // Only USER and OWNER
-    // ---------------------------------------------
+    const allowedRoles = [
+      "USER",
+      "OWNER",
+      "ADMIN"
+    ];
 
     if (
-      !["USER", "OWNER"].includes(role)
+      !allowedRoles.includes(role)
     ) {
+
       return res.status(400).json({
         success: false,
         message:
-          "Admin can only create USER or OWNER accounts"
+          "Invalid role. Allowed roles are USER, OWNER and ADMIN"
       });
     }
 
 
-    // ---------------------------------------------
-    // OWNER store validation
-    // ---------------------------------------------
+    // =================================================
+    // CHECK EXISTING EMAIL
+    // =================================================
+
+    const existingUser =
+      await prisma.user.findUnique({
+        where: {
+          email
+        }
+      });
+
+
+    if (existingUser) {
+
+      return res.status(409).json({
+        success: false,
+        message:
+          "Email already registered"
+      });
+    }
+
+
+    // =================================================
+    // OWNER VALIDATION
+    // =================================================
 
     if (role === "OWNER") {
 
@@ -155,6 +165,7 @@ const createUser = async (req, res) => {
         !storeEmail ||
         !storeAddress
       ) {
+
         return res.status(400).json({
           success: false,
           message:
@@ -164,75 +175,22 @@ const createUser = async (req, res) => {
 
 
       if (
-        storeName.length < 20 ||
+        storeName.length < 3 ||
         storeName.length > 60
       ) {
+
         return res.status(400).json({
           success: false,
           message:
-            "Store name must be between 20 and 60 characters"
-        });
-      }
-
-
-      if (storeAddress.length > 400) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Store address cannot exceed 400 characters"
+            "Store name must be between 3 and 60 characters"
         });
       }
     }
 
 
-    // ---------------------------------------------
-    // Check duplicate USER email
-    // ---------------------------------------------
-
-    const existingUser =
-      await prisma.user.findUnique({
-        where: {
-          email: email
-        }
-      });
-
-
-    if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "User email already exists"
-      });
-    }
-
-
-    // ---------------------------------------------
-    // Check duplicate STORE email
-    // ---------------------------------------------
-
-    if (role === "OWNER") {
-
-      const existingStore =
-        await prisma.store.findFirst({
-          where: {
-            email: storeEmail
-          }
-        });
-
-
-      if (existingStore) {
-        return res.status(409).json({
-          success: false,
-          message:
-            "Store email already exists"
-        });
-      }
-    }
-
-
-    // ---------------------------------------------
-    // Hash password
-    // ---------------------------------------------
+    // =================================================
+    // HASH PASSWORD
+    // =================================================
 
     const hashedPassword =
       await bcrypt.hash(
@@ -250,18 +208,26 @@ const createUser = async (req, res) => {
         async (tx) => {
 
           // -------------------------------------------
-          // Create USER / OWNER
+          // CREATE USER
           // -------------------------------------------
 
           const user =
             await tx.user.create({
+
               data: {
-                name: name,
-                email: email,
-                password: hashedPassword,
-                address: address,
-                role: role
+
+                name,
+
+                email,
+
+                password:
+                  hashedPassword,
+
+                address,
+
+                role
               }
+
             });
 
 
@@ -269,19 +235,29 @@ const createUser = async (req, res) => {
 
 
           // -------------------------------------------
-          // Automatically create store for OWNER
+          // CREATE STORE FOR OWNER
           // -------------------------------------------
 
           if (role === "OWNER") {
 
             store =
               await tx.store.create({
+
                 data: {
-                  name: storeName,
-                  email: storeEmail,
-                  address: storeAddress,
-                  ownerId: user.id
+
+                  name:
+                    storeName,
+
+                  email:
+                    storeEmail,
+
+                  address:
+                    storeAddress,
+
+                  ownerId:
+                    user.id
                 }
+
               });
           }
 
@@ -290,54 +266,98 @@ const createUser = async (req, res) => {
             user,
             store
           };
+
         }
       );
 
 
-    // ---------------------------------------------
-    // Remove password from response
-    // ---------------------------------------------
+    // =================================================
+    // RESPONSE
+    // =================================================
 
-    const {
-      password: _password,
-      ...userWithoutPassword
-    } = result.user;
+    let message;
 
+    if (role === "ADMIN") {
 
-    // ---------------------------------------------
-    // Response
-    // ---------------------------------------------
+      message =
+        "Admin created successfully";
+
+    } else if (role === "OWNER") {
+
+      message =
+        "Store owner and store created successfully";
+
+    } else {
+
+      message =
+        "User created successfully";
+    }
+
 
     return res.status(201).json({
 
       success: true,
 
-      message:
-        role === "OWNER"
-          ? "Owner and store created successfully"
-          : "User created successfully",
+      message,
 
-      user: userWithoutPassword,
+      user: {
 
-      ...(result.store
-        ? {
-            store: result.store
-          }
-        : {})
+        id:
+          result.user.id,
+
+        name:
+          result.user.name,
+
+        email:
+          result.user.email,
+
+        address:
+          result.user.address,
+
+        role:
+          result.user.role
+
+      },
+
+      ...(result.store && {
+
+        store: {
+
+          id:
+            result.store.id,
+
+          name:
+            result.store.name,
+
+          email:
+            result.store.email,
+
+          address:
+            result.store.address,
+
+          ownerId:
+            result.store.ownerId
+
+        }
+
+      })
+
     });
-
 
   } catch (error) {
 
     console.error(
-      "Create user error:",
+      "Admin create user error:",
       error
     );
 
     return res.status(500).json({
+
       success: false,
+
       message:
         "Failed to create user"
+
     });
   }
 };
@@ -345,7 +365,6 @@ const createUser = async (req, res) => {
 
 // =====================================================
 // CREATE STORE
-// ADMIN ONLY
 // =====================================================
 
 const createStore = async (req, res) => {
@@ -359,9 +378,9 @@ const createStore = async (req, res) => {
     } = req.body;
 
 
-    // ---------------------------------------------
-    // Required fields
-    // ---------------------------------------------
+    // =================================================
+    // VALIDATION
+    // =================================================
 
     if (
       !name ||
@@ -369,90 +388,65 @@ const createStore = async (req, res) => {
       !address ||
       !ownerId
     ) {
+
       return res.status(400).json({
         success: false,
         message:
-          "Name, email, address and ownerId are required"
+          "Store name, email, address and owner are required"
       });
     }
 
 
-    // ---------------------------------------------
-    // Store name validation
-    // ---------------------------------------------
-
-    if (
-      name.length < 20 ||
-      name.length > 60
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Store name must be between 20 and 60 characters"
-      });
-    }
-
-
-    // ---------------------------------------------
-    // Address validation
-    // ---------------------------------------------
-
-    if (address.length > 400) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "Address cannot exceed 400 characters"
-      });
-    }
-
-
-    // ---------------------------------------------
-    // Find owner
-    // ---------------------------------------------
+    // =================================================
+    // CHECK OWNER
+    // =================================================
 
     const owner =
       await prisma.user.findUnique({
+
         where: {
           id: Number(ownerId)
         }
+
       });
 
 
     if (!owner) {
+
       return res.status(404).json({
         success: false,
         message:
-          "Store owner not found"
+          "Owner not found"
       });
     }
 
 
-    // ---------------------------------------------
-    // Verify OWNER role
-    // ---------------------------------------------
-
     if (owner.role !== "OWNER") {
+
       return res.status(400).json({
         success: false,
         message:
-          "Selected user is not a store owner"
+          "Selected user is not an owner"
       });
     }
 
 
-    // ---------------------------------------------
-    // One owner = one store
-    // ---------------------------------------------
+    // =================================================
+    // CHECK EXISTING STORE
+    // =================================================
 
     const existingStore =
-      await prisma.store.findUnique({
+      await prisma.store.findFirst({
+
         where: {
-          ownerId: Number(ownerId)
+          ownerId: owner.id
         }
+
       });
 
 
     if (existingStore) {
+
       return res.status(409).json({
         success: false,
         message:
@@ -461,39 +455,26 @@ const createStore = async (req, res) => {
     }
 
 
-    // ---------------------------------------------
-    // Check duplicate store email
-    // ---------------------------------------------
-
-    const existingStoreEmail =
-      await prisma.store.findFirst({
-        where: {
-          email: email
-        }
-      });
-
-
-    if (existingStoreEmail) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Store email already exists"
-      });
-    }
-
-
-    // ---------------------------------------------
-    // Create store
-    // ---------------------------------------------
+    // =================================================
+    // CREATE STORE
+    // =================================================
 
     const store =
       await prisma.store.create({
+
         data: {
-          name: name,
-          email: email,
-          address: address,
-          ownerId: Number(ownerId)
+
+          name,
+
+          email,
+
+          address,
+
+          ownerId:
+            owner.id
+
         }
+
       });
 
 
@@ -505,8 +486,8 @@ const createStore = async (req, res) => {
         "Store created successfully",
 
       store
-    });
 
+    });
 
   } catch (error) {
 
@@ -516,9 +497,12 @@ const createStore = async (req, res) => {
     );
 
     return res.status(500).json({
+
       success: false,
+
       message:
         "Failed to create store"
+
     });
   }
 };
@@ -531,73 +515,227 @@ const createStore = async (req, res) => {
 const getUsers = async (req, res) => {
   try {
 
-    const {
-      name,
-      email,
-      address,
-      role,
-      sortBy = "name",
-      order = "asc"
-    } = req.query;
-
-
-    const allowedSortFields = [
-      "name",
-      "email",
-      "address",
-      "role",
-      "createdAt"
-    ];
-
-
-    const sortField =
-      allowedSortFields.includes(sortBy)
-        ? sortBy
-        : "name";
-
-
-    const sortOrder =
-      order === "desc"
-        ? "desc"
-        : "asc";
-
-
     const users =
       await prisma.user.findMany({
 
-        where: {
-
-          name: name
-            ? {
-                contains: name
-              }
-            : undefined,
-
-          email: email
-            ? {
-                contains: email
-              }
-            : undefined,
-
-          address: address
-            ? {
-                contains: address
-              }
-            : undefined,
-
-          role:
-            role &&
-            ["ADMIN", "USER", "OWNER"]
-              .includes(role)
-              ? role
-              : undefined
+        orderBy: {
+          id: "asc"
         },
 
+        select: {
+
+          id: true,
+
+          name: true,
+
+          email: true,
+
+          address: true,
+
+          role: true,
+
+          createdAt: true
+
+        }
+
+      });
+
+
+    return res.json({
+
+      success: true,
+
+      count:
+        users.length,
+
+      users
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Get users error:",
+      error
+    );
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        "Failed to fetch users"
+
+    });
+  }
+};
+
+
+// =====================================================
+// GET ALL STORES
+// =====================================================
+
+const getStores = async (req, res) => {
+  try {
+
+    const stores =
+      await prisma.store.findMany({
 
         orderBy: {
-          [sortField]: sortOrder
+          id: "asc"
         },
 
+        include: {
+
+          owner: {
+
+            select: {
+
+              id: true,
+
+              name: true,
+
+              email: true
+
+            }
+
+          },
+
+          ratings: {
+
+            select: {
+
+              rating: true
+
+            }
+
+          }
+
+        }
+
+      });
+
+
+    // =================================================
+    // CALCULATE AVERAGE RATING
+    // =================================================
+
+    const formattedStores =
+      stores.map((store) => {
+
+        let overallRating = 0;
+
+
+        if (
+          store.ratings &&
+          store.ratings.length > 0
+        ) {
+
+          const total =
+            store.ratings.reduce(
+              (sum, item) =>
+                sum + item.rating,
+              0
+            );
+
+
+          overallRating =
+            Number(
+              (
+                total /
+                store.ratings.length
+              ).toFixed(2)
+            );
+        }
+
+
+        return {
+
+          id:
+            store.id,
+
+          name:
+            store.name,
+
+          email:
+            store.email,
+
+          address:
+            store.address,
+
+          owner:
+            store.owner,
+
+          overallRating
+
+        };
+
+      });
+
+
+    return res.json({
+
+      success: true,
+
+      count:
+        formattedStores.length,
+
+      stores:
+        formattedStores
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Get admin stores error:",
+      error
+    );
+
+    return res.status(500).json({
+
+      success: false,
+
+      message:
+        "Failed to fetch stores"
+
+    });
+  }
+};
+
+
+// =====================================================
+// GET USER DETAILS
+// =====================================================
+
+const getUserDetails = async (req, res) => {
+  try {
+
+    const userId =
+      Number(req.params.id);
+
+
+    if (
+      Number.isNaN(userId)
+    ) {
+
+      return res.status(400).json({
+
+        success: false,
+
+        message:
+          "Invalid user ID"
+
+      });
+    }
+
+
+    const user =
+      await prisma.user.findUnique({
+
+        where: {
+          id: userId
+        },
 
         select: {
 
@@ -613,9 +751,7 @@ const getUsers = async (req, res) => {
 
           createdAt: true,
 
-
-          // OWNER STORE
-          store: {
+          stores: {
 
             select: {
 
@@ -625,345 +761,14 @@ const getUsers = async (req, res) => {
 
               email: true,
 
-              address: true,
+              address: true
 
-
-              ratings: {
-
-                select: {
-                  rating: true
-                }
-              }
             }
+
           }
-        }
-      });
 
-
-    // ---------------------------------------------
-    // Format users
-    // ---------------------------------------------
-
-    const formattedUsers =
-      users.map((user) => {
-
-        let averageRating = null;
-
-
-        if (
-          user.store &&
-          user.store.ratings.length > 0
-        ) {
-
-          const total =
-            user.store.ratings.reduce(
-              (sum, item) =>
-                sum + item.rating,
-              0
-            );
-
-
-          averageRating =
-            Number(
-              (
-                total /
-                user.store.ratings.length
-              ).toFixed(2)
-            );
         }
 
-
-        return {
-
-          id: user.id,
-
-          name: user.name,
-
-          email: user.email,
-
-          address: user.address,
-
-          role: user.role,
-
-          createdAt:
-            user.createdAt,
-
-
-          store: user.store
-            ? {
-
-                id:
-                  user.store.id,
-
-                name:
-                  user.store.name,
-
-                email:
-                  user.store.email,
-
-                address:
-                  user.store.address,
-
-                averageRating
-              }
-
-            : null
-        };
-      });
-
-
-    res.json({
-
-      success: true,
-
-      count:
-        formattedUsers.length,
-
-      users:
-        formattedUsers
-    });
-
-
-  } catch (error) {
-
-    console.error(
-      "Get users error:",
-      error
-    );
-
-    res.status(500).json({
-
-      success: false,
-
-      message:
-        "Failed to fetch users"
-    });
-  }
-};
-
-
-// =====================================================
-// GET ALL STORES
-// =====================================================
-
-const getStores = async (req, res) => {
-  try {
-
-    const {
-      name,
-      email,
-      address,
-      sortBy = "name",
-      order = "asc"
-    } = req.query;
-
-
-    const allowedSortFields = [
-      "name",
-      "email",
-      "address",
-      "createdAt"
-    ];
-
-
-    const sortField =
-      allowedSortFields.includes(sortBy)
-        ? sortBy
-        : "name";
-
-
-    const sortOrder =
-      order === "desc"
-        ? "desc"
-        : "asc";
-
-
-    const stores =
-      await prisma.store.findMany({
-
-        where: {
-
-          name: name
-            ? {
-                contains: name
-              }
-            : undefined,
-
-          email: email
-            ? {
-                contains: email
-              }
-            : undefined,
-
-          address: address
-            ? {
-                contains: address
-              }
-            : undefined
-        },
-
-
-        orderBy: {
-          [sortField]: sortOrder
-        },
-
-
-        include: {
-
-          ratings: {
-
-            select: {
-              rating: true
-            }
-          }
-        }
-      });
-
-
-    // ---------------------------------------------
-    // Calculate rating
-    // ---------------------------------------------
-
-    const formattedStores =
-      stores.map((store) => {
-
-        let averageRating = 0;
-
-
-        if (
-          store.ratings.length > 0
-        ) {
-
-          const total =
-            store.ratings.reduce(
-              (sum, item) =>
-                sum + item.rating,
-              0
-            );
-
-
-          averageRating =
-            Number(
-              (
-                total /
-                store.ratings.length
-              ).toFixed(2)
-            );
-        }
-
-
-        return {
-
-          id: store.id,
-
-          name: store.name,
-
-          email: store.email,
-
-          address: store.address,
-
-          rating:
-            averageRating
-        };
-      });
-
-
-    res.json({
-
-      success: true,
-
-      count:
-        formattedStores.length,
-
-      stores:
-        formattedStores
-    });
-
-
-  } catch (error) {
-
-    console.error(
-      "Get stores error:",
-      error
-    );
-
-    res.status(500).json({
-
-      success: false,
-
-      message:
-        "Failed to fetch stores"
-    });
-  }
-};
-
-
-// =====================================================
-// GET USER DETAILS
-// =====================================================
-
-const getUserDetails = async (req, res) => {
-  try {
-
-    const id =
-      Number(req.params.id);
-
-
-    if (!Number.isInteger(id)) {
-
-      return res.status(400).json({
-
-        success: false,
-
-        message:
-          "Invalid user ID"
-      });
-    }
-
-
-    const user =
-      await prisma.user.findUnique({
-
-        where: {
-          id: id
-        },
-
-
-        select: {
-
-          id: true,
-
-          name: true,
-
-          email: true,
-
-          address: true,
-
-          role: true,
-
-
-          store: {
-
-            select: {
-
-              id: true,
-
-              name: true,
-
-              email: true,
-
-              address: true,
-
-
-              ratings: {
-
-                select: {
-                  rating: true
-                }
-              }
-            }
-          }
-        }
       });
 
 
@@ -975,89 +780,33 @@ const getUserDetails = async (req, res) => {
 
         message:
           "User not found"
+
       });
     }
 
 
-    let averageRating = null;
-
-
-    if (
-      user.store &&
-      user.store.ratings.length > 0
-    ) {
-
-      const total =
-        user.store.ratings.reduce(
-          (sum, item) =>
-            sum + item.rating,
-          0
-        );
-
-
-      averageRating =
-        Number(
-          (
-            total /
-            user.store.ratings.length
-          ).toFixed(2)
-        );
-    }
-
-
-    res.json({
+    return res.json({
 
       success: true,
 
-      user: {
+      user
 
-        id: user.id,
-
-        name: user.name,
-
-        email: user.email,
-
-        address: user.address,
-
-        role: user.role,
-
-
-        store: user.store
-          ? {
-
-              id:
-                user.store.id,
-
-              name:
-                user.store.name,
-
-              email:
-                user.store.email,
-
-              address:
-                user.store.address,
-
-              averageRating
-            }
-
-          : null
-      }
     });
-
 
   } catch (error) {
 
     console.error(
-      "User details error:",
+      "Get user details error:",
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
 
       success: false,
 
       message:
         "Failed to fetch user details"
+
     });
   }
 };
@@ -1065,17 +814,18 @@ const getUserDetails = async (req, res) => {
 
 // =====================================================
 // DELETE USER
-// ADMIN CANNOT BE DELETED
 // =====================================================
 
 const deleteUser = async (req, res) => {
   try {
 
-    const id =
+    const userId =
       Number(req.params.id);
 
 
-    if (!Number.isInteger(id)) {
+    if (
+      Number.isNaN(userId)
+    ) {
 
       return res.status(400).json({
 
@@ -1083,28 +833,22 @@ const deleteUser = async (req, res) => {
 
         message:
           "Invalid user ID"
+
       });
     }
 
 
-    // ---------------------------------------------
-    // Find user
-    // ---------------------------------------------
+    // =================================================
+    // FIND USER
+    // =================================================
 
     const user =
       await prisma.user.findUnique({
 
         where: {
-          id: id
-        },
-
-
-        include: {
-
-          store: true,
-
-          ratings: true
+          id: userId
         }
+
       });
 
 
@@ -1116,61 +860,83 @@ const deleteUser = async (req, res) => {
 
         message:
           "User not found"
+
       });
     }
 
 
-    // ---------------------------------------------
-    // Protect ADMIN
-    // ---------------------------------------------
+    // =================================================
+    // DELETE ADMIN
+    // =================================================
+    //
+    // Admin deletion is allowed now because
+    // multiple admins are allowed.
+    //
+    // The currently logged-in admin cannot delete
+    // themselves.
+    // =================================================
 
-    if (user.role === "ADMIN") {
+    if (
+      req.user &&
+      Number(req.user.id) === userId
+    ) {
 
-      return res.status(403).json({
+      return res.status(400).json({
 
         success: false,
 
         message:
-          "Admin accounts cannot be deleted"
+          "You cannot delete your own account"
+
       });
     }
 
 
-    // ---------------------------------------------
-    // Delete related data
-    // ---------------------------------------------
+    // =================================================
+    // DELETE USER
+    // =================================================
 
     await prisma.$transaction(
       async (tx) => {
 
-        // Delete ratings
+        // -------------------------------------------
+        // Delete ratings made by this user
+        // -------------------------------------------
+
         await tx.rating.deleteMany({
 
           where: {
-            userId: id
+            userId: userId
           }
+
         });
 
 
-        // Delete store if OWNER
-        if (user.store) {
+        // -------------------------------------------
+        // If OWNER, delete their stores
+        // -------------------------------------------
 
-          await tx.store.delete({
+        await tx.store.deleteMany({
 
-            where: {
-              id: user.store.id
-            }
-          });
-        }
+          where: {
+            ownerId: userId
+          }
+
+        });
 
 
+        // -------------------------------------------
         // Delete user
+        // -------------------------------------------
+
         await tx.user.delete({
 
           where: {
-            id: id
+            id: userId
           }
+
         });
+
       }
     );
 
@@ -1180,9 +946,9 @@ const deleteUser = async (req, res) => {
       success: true,
 
       message:
-        "User and related data deleted successfully"
-    });
+        "User deleted successfully"
 
+    });
 
   } catch (error) {
 
@@ -1197,6 +963,7 @@ const deleteUser = async (req, res) => {
 
       message:
         "Failed to delete user"
+
     });
   }
 };

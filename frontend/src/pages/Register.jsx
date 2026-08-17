@@ -13,20 +13,6 @@ function Register() {
   const [address, setAddress] = useState("");
 
   // ==================================================
-  // ROLE
-  // ==================================================
-
-  const [role, setRole] = useState("USER");
-
-  // ==================================================
-  // STORE DETAILS
-  // ==================================================
-
-  const [storeName, setStoreName] = useState("");
-  const [storeEmail, setStoreEmail] = useState("");
-  const [storeAddress, setStoreAddress] = useState("");
-
-  // ==================================================
   // STATUS
   // ==================================================
 
@@ -36,7 +22,7 @@ function Register() {
 
 
   // ==================================================
-  // REGISTER
+  // REGISTER CUSTOMER
   // ==================================================
 
   const handleRegister = async (e) => {
@@ -50,42 +36,26 @@ function Register() {
 
       setLoading(true);
 
-      const requestData = {
-        name,
-        email,
-        password,
-        address,
-        role
-      };
+      const response = await api.post(
+        "/auth/register",
+        {
+          name,
+          email,
+          password,
+          address,
+
+          // -----------------------------------------
+          // Public registration is always CUSTOMER
+          // -----------------------------------------
+
+          role: "USER"
+        }
+      );
 
 
-      // ---------------------------------------------
-      // Add store information for OWNER
-      // ---------------------------------------------
-
-      if (role === "OWNER") {
-
-        requestData.storeName = storeName;
-        requestData.storeEmail = storeEmail;
-        requestData.storeAddress = storeAddress;
-
-      }
-
-
-      // ---------------------------------------------
-      // API REQUEST
-      // ---------------------------------------------
-
-      const response =
-        await api.post(
-          "/auth/register",
-          requestData
-        );
-
-
-      // ---------------------------------------------
+      // ==================================================
       // SUCCESS
-      // ---------------------------------------------
+      // ==================================================
 
       setSuccess(
         response.data.message ||
@@ -100,16 +70,10 @@ function Register() {
       setPassword("");
       setAddress("");
 
-      setStoreName("");
-      setStoreEmail("");
-      setStoreAddress("");
 
-      setRole("USER");
-
-
-      // ---------------------------------------------
-      // Go to login after 1.5 seconds
-      // ---------------------------------------------
+      // ==================================================
+      // REDIRECT TO LOGIN
+      // ==================================================
 
       setTimeout(() => {
 
@@ -167,6 +131,7 @@ function Register() {
           Store Rating System
         </h1>
 
+
         <h2 style={styles.heading}>
           Create Account
         </h2>
@@ -197,6 +162,10 @@ function Register() {
 
         )}
 
+
+        {/* ==================================================
+            REGISTRATION FORM
+        ================================================== */}
 
         <form
           onSubmit={handleRegister}
@@ -267,136 +236,6 @@ function Register() {
 
 
           {/* ==================================================
-              ROLE SELECTION
-          ================================================== */}
-
-          <div style={styles.roleSection}>
-
-            <h3 style={styles.roleTitle}>
-              Register as:
-            </h3>
-
-
-            {/* CUSTOMER */}
-
-            <label style={styles.roleOption}>
-
-              <input
-                type="radio"
-                name="role"
-                value="USER"
-                checked={
-                  role === "USER"
-                }
-                onChange={(e) =>
-                  setRole(
-                    e.target.value
-                  )
-                }
-                style={styles.radio}
-              />
-
-              <span>
-                Customer
-              </span>
-
-            </label>
-
-
-            {/* STORE OWNER */}
-
-            <label style={styles.roleOption}>
-
-              <input
-                type="radio"
-                name="role"
-                value="OWNER"
-                checked={
-                  role === "OWNER"
-                }
-                onChange={(e) =>
-                  setRole(
-                    e.target.value
-                  )
-                }
-                style={styles.radio}
-              />
-
-              <span>
-                Store Owner
-              </span>
-
-            </label>
-
-          </div>
-
-
-          {/* ==================================================
-              STORE INFORMATION
-              ONLY OWNER
-          ================================================== */}
-
-          {role === "OWNER" && (
-
-            <div style={styles.storeSection}>
-
-              <h3 style={styles.storeTitle}>
-                Store Information
-              </h3>
-
-
-              {/* STORE NAME */}
-
-              <input
-                type="text"
-                placeholder="Store Name"
-                value={storeName}
-                onChange={(e) =>
-                  setStoreName(
-                    e.target.value
-                  )
-                }
-                style={styles.input}
-                required
-              />
-
-
-              {/* STORE EMAIL */}
-
-              <input
-                type="email"
-                placeholder="Store Email"
-                value={storeEmail}
-                onChange={(e) =>
-                  setStoreEmail(
-                    e.target.value
-                  )
-                }
-                style={styles.input}
-                required
-              />
-
-
-              {/* STORE ADDRESS */}
-
-              <textarea
-                placeholder="Store Address"
-                value={storeAddress}
-                onChange={(e) =>
-                  setStoreAddress(
-                    e.target.value
-                  )
-                }
-                style={styles.textarea}
-                required
-              />
-
-            </div>
-
-          )}
-
-
-          {/* ==================================================
               CREATE ACCOUNT
           ================================================== */}
 
@@ -423,12 +262,15 @@ function Register() {
           Already have an account?
         </p>
 
+
         <button
           type="button"
           onClick={backToLogin}
           style={styles.loginButton}
         >
+
           Back to Login
+
         </button>
 
       </div>
@@ -512,71 +354,6 @@ const styles = {
   },
 
 
-  // ==================================================
-  // ROLE SECTION
-  // ==================================================
-
-  roleSection: {
-    marginTop: "5px",
-    marginBottom: "25px"
-  },
-
-
-  roleTitle: {
-    margin: "0 0 15px 0",
-    fontSize: "20px",
-    fontWeight: "600",
-    color: "#111827"
-  },
-
-
-  roleOption: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "15px",
-    cursor: "pointer",
-    fontSize: "18px",
-    color: "#111827"
-  },
-
-
-  radio: {
-    width: "20px",
-    height: "20px",
-    margin: "0",
-    padding: "0",
-    cursor: "pointer",
-    flexShrink: "0"
-  },
-
-
-  // ==================================================
-  // STORE SECTION
-  // ==================================================
-
-  storeSection: {
-    marginTop: "10px",
-    padding: "20px",
-    background: "#f9fafb",
-    borderRadius: "10px",
-    border:
-      "1px solid #e5e7eb",
-    marginBottom: "20px"
-  },
-
-
-  storeTitle: {
-    margin: "0 0 20px 0",
-    fontSize: "20px",
-    color: "#111827"
-  },
-
-
-  // ==================================================
-  // BUTTONS
-  // ==================================================
-
   createButton: {
     width: "100%",
     background: "#2563eb",
@@ -588,6 +365,15 @@ const styles = {
     fontSize: "18px",
     fontWeight: "600",
     marginTop: "5px"
+  },
+
+
+  loginText: {
+    textAlign: "center",
+    fontSize: "17px",
+    margin:
+      "25px 0 12px 0",
+    color: "#111827"
   },
 
 
@@ -603,19 +389,6 @@ const styles = {
     fontWeight: "600"
   },
 
-
-  loginText: {
-    textAlign: "center",
-    fontSize: "17px",
-    margin:
-      "25px 0 12px 0",
-    color: "#111827"
-  },
-
-
-  // ==================================================
-  // MESSAGES
-  // ==================================================
 
   error: {
     background: "#fee2e2",

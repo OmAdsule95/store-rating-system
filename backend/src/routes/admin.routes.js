@@ -17,7 +17,8 @@ const {
 
 const router = express.Router();
 
-// Admin Dashboard
+
+// Dashboard
 router.get(
   "/dashboard",
   authenticate,
@@ -25,13 +26,15 @@ router.get(
   getDashboard
 );
 
-// Create User / Admin
+
+// Create User / Owner / Admin
 router.post(
   "/users",
   authenticate,
   authorize("ADMIN"),
   createUser
 );
+
 
 // Create Store
 router.post(
@@ -41,6 +44,7 @@ router.post(
   createStore
 );
 
+
 // Get Users
 router.get(
   "/users",
@@ -48,6 +52,7 @@ router.get(
   authorize("ADMIN"),
   getUsers
 );
+
 
 // Get Stores
 router.get(
@@ -57,6 +62,7 @@ router.get(
   getStores
 );
 
+
 // Get User Details
 router.get(
   "/users/:id",
@@ -65,13 +71,14 @@ router.get(
   getUserDetails
 );
 
-// Delete User
 
+// Delete User / Owner / Admin
 router.delete(
   "/users/:id",
   authenticate,
   authorize("ADMIN"),
   deleteUser
 );
+
 
 module.exports = router;
